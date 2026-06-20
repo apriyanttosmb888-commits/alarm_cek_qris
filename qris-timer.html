@@ -1,0 +1,708 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>QRIS Check Timer — Tokyo Neon</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=Noto+Sans+JP:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #05010f;
+    font-family: 'Noto Sans JP', sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    padding: 2rem 1rem 3rem;
+    position: relative;
+    overflow-x: hidden;
+  }
+
+  /* Animated city grid bg */
+  .city-grid {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 0;
+    background:
+      linear-gradient(rgba(0,255,200,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,255,200,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    animation: gridPulse 6s ease-in-out infinite;
+  }
+  @keyframes gridPulse {
+    0%, 100% { opacity: 0.5; }
+    50% { opacity: 1; }
+  }
+
+  /* Rain streaks */
+  .rain {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    pointer-events: none; z-index: 0; overflow: hidden;
+  }
+  .rain-drop {
+    position: absolute;
+    width: 1px;
+    background: linear-gradient(transparent, rgba(0,255,200,0.25));
+    animation: fall linear infinite;
+  }
+  @keyframes fall {
+    0%   { transform: translateY(-100px); opacity: 0; }
+    10%  { opacity: 1; }
+    90%  { opacity: 0.5; }
+    100% { transform: translateY(110vh); opacity: 0; }
+  }
+
+  /* Neon scanline */
+  .scanline {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, rgba(0,255,200,0.3), transparent);
+    animation: scanDown 8s linear infinite;
+    pointer-events: none; z-index: 1;
+  }
+  @keyframes scanDown { 0% { top: 0; } 100% { top: 100vh; } }
+
+  /* Main wrapper */
+  .wrapper {
+    position: relative; z-index: 2;
+    width: 100%; max-width: 640px;
+    display: flex; flex-direction: column; align-items: center; gap: 1.5rem;
+  }
+
+  /* Header */
+  .header-sign { text-align: center; }
+  .kanji-tag {
+    font-family: 'Noto Sans JP', sans-serif;
+    font-size: 11px;
+    letter-spacing: 0.3em;
+    color: #ff2d78;
+    text-transform: uppercase;
+    margin-bottom: 6px;
+    display: block;
+    text-shadow: 0 0 8px #ff2d78;
+  }
+  .main-title {
+    font-family: 'Orbitron', monospace;
+    font-size: clamp(1.6rem, 6vw, 2.4rem);
+    font-weight: 900;
+    color: #fff;
+    letter-spacing: 0.15em;
+    line-height: 1.1;
+    text-shadow: 0 0 10px #00ffc8, 0 0 30px #00ffc8, 0 0 60px rgba(0,255,200,0.4);
+  }
+  .main-title span {
+    color: #ff2d78;
+    text-shadow: 0 0 10px #ff2d78, 0 0 30px #ff2d78;
+  }
+  .sub-title {
+    font-size: 11px;
+    color: rgba(0,255,200,0.5);
+    letter-spacing: 0.2em;
+    margin-top: 6px;
+    text-shadow: 0 0 6px rgba(0,255,200,0.3);
+  }
+
+  /* Clock panel */
+  .clock-panel {
+    width: 100%;
+    border: 1.5px solid rgba(0,255,200,0.3);
+    border-radius: 16px;
+    background: rgba(0,255,200,0.03);
+    padding: 1.25rem 1.5rem;
+    position: relative;
+    overflow: hidden;
+  }
+  .clock-panel::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0; height: 1px;
+    background: linear-gradient(90deg, transparent, #00ffc8, transparent);
+  }
+  .clock-label {
+    font-size: 10px; letter-spacing: 0.3em; color: rgba(0,255,200,0.5);
+    text-transform: uppercase; text-align: center; margin-bottom: 6px;
+  }
+  .clock-now {
+    font-family: 'Orbitron', monospace;
+    font-size: clamp(2.2rem, 9vw, 3.8rem);
+    font-weight: 900;
+    text-align: center;
+    color: #00ffc8;
+    text-shadow: 0 0 8px #00ffc8, 0 0 25px rgba(0,255,200,0.5);
+    letter-spacing: 0.1em;
+    line-height: 1;
+  }
+  .clock-date {
+    font-size: 11px; color: rgba(255,255,255,0.35);
+    text-align: center; margin-top: 5px; letter-spacing: 0.15em;
+  }
+
+  /* Info cards row */
+  .timers-row {
+    width: 100%;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+  .timer-card {
+    border-radius: 14px;
+    padding: 1.1rem 1rem;
+    position: relative;
+    overflow: hidden;
+    border: 1px solid rgba(0,255,200,0.15);
+    background: rgba(0,0,0,0.4);
+  }
+  .timer-card::after {
+    content: '';
+    position: absolute;
+    bottom: 0; left: 0; right: 0; height: 2px;
+    background: var(--accent);
+    opacity: 0.6;
+    transform: scaleX(var(--progress, 0));
+    transform-origin: left;
+    transition: transform 0.5s ease;
+  }
+  .tc-icon  { font-size: 20px; margin-bottom: 7px; display: block; filter: drop-shadow(0 0 8px var(--accent)); }
+  .tc-label { font-size: 9px; letter-spacing: 0.25em; text-transform: uppercase; color: var(--accent); opacity: 0.8; margin-bottom: 5px; text-shadow: 0 0 8px var(--accent); display: block; }
+  .tc-time  { font-family: 'Orbitron', monospace; font-size: clamp(1.1rem, 4vw, 1.6rem); font-weight: 900; color: #fff; text-shadow: 0 0 10px var(--accent); letter-spacing: 0.06em; display: block; }
+  .tc-sub   { font-size: 10px; color: rgba(255,255,255,0.35); margin-top: 4px; display: block; letter-spacing: 0.1em; }
+  .timer-card.cyan   { --accent: #00ffc8; }
+  .timer-card.pink   { --accent: #ff2d78; }
+  .timer-card.yellow { --accent: #ffe600; }
+  .timer-card.purple { --accent: #c44dff; }
+
+  /* Main countdown */
+  .countdown-panel {
+    width: 100%;
+    border: 2px solid rgba(255,45,120,0.4);
+    border-radius: 18px;
+    padding: 1.75rem 1.5rem;
+    background: rgba(255,45,120,0.04);
+    position: relative;
+    overflow: hidden;
+    text-align: center;
+  }
+  .countdown-panel::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0; height: 2px;
+    background: linear-gradient(90deg, transparent, #ff2d78, transparent);
+  }
+  .cd-label {
+    font-size: 10px; letter-spacing: 0.35em; color: #ff2d78;
+    text-shadow: 0 0 8px #ff2d78; margin-bottom: 0.75rem;
+    text-transform: uppercase; display: block;
+  }
+  .cd-target {
+    font-size: 12px; color: rgba(255,255,255,0.45); letter-spacing: 0.1em;
+    margin-bottom: 1rem;
+  }
+  .cd-target strong { color: #ff2d78; font-weight: 700; text-shadow: 0 0 6px #ff2d78; }
+
+  /* Circular progress */
+  .circle-wrap {
+    position: relative;
+    width: 160px; height: 160px;
+    margin: 0 auto 1rem;
+  }
+  .circle-wrap svg { transform: rotate(-90deg); }
+  .circle-bg   { fill: none; stroke: rgba(255,45,120,0.1); stroke-width: 8; }
+  .circle-prog {
+    fill: none; stroke: #ff2d78; stroke-width: 8;
+    stroke-linecap: round;
+    stroke-dasharray: 439.8;
+    stroke-dashoffset: 439.8;
+    transition: stroke-dashoffset 0.5s ease;
+    filter: drop-shadow(0 0 6px #ff2d78);
+  }
+  .circle-prog.urgent { stroke: #ffe600; filter: drop-shadow(0 0 8px #ffe600); }
+  .circle-prog.done   { stroke: #00ffc8; filter: drop-shadow(0 0 8px #00ffc8); }
+  .circle-inner {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 2px;
+  }
+  .cd-big {
+    font-family: 'Orbitron', monospace;
+    font-size: clamp(1.6rem, 6vw, 2.4rem);
+    font-weight: 900; color: #fff;
+    text-shadow: 0 0 15px #ff2d78, 0 0 30px rgba(255,45,120,0.4);
+    letter-spacing: 0.05em; line-height: 1;
+  }
+  .cd-big.urgent    { text-shadow: 0 0 15px #ffe600, 0 0 30px rgba(255,230,0,0.4); color: #ffe600; }
+  .cd-big.done-text { text-shadow: 0 0 15px #00ffc8; color: #00ffc8; }
+  .cd-unit   { font-size: 10px; color: rgba(255,255,255,0.35); letter-spacing: 0.2em; }
+  .cd-status { font-size: 11px; letter-spacing: 0.15em; margin-top: 0.5rem; display: block; color: rgba(255,255,255,0.4); }
+
+  /* Alert banner */
+  .alert-banner {
+    width: 100%;
+    border-radius: 14px;
+    padding: 1rem 1.25rem;
+    background: rgba(0,255,200,0.06);
+    border: 1.5px solid rgba(0,255,200,0.4);
+    display: none;
+    align-items: center; gap: 12px;
+  }
+  .alert-banner.show { display: flex; animation: bannerPop 0.4s cubic-bezier(0.25,1,0.5,1); }
+  @keyframes bannerPop { from { transform: scale(0.95); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+  .alert-icon  { font-size: 24px; flex-shrink: 0; }
+  .alert-title { font-family: 'Orbitron', monospace; font-size: 13px; font-weight: 900; color: #00ffc8; letter-spacing: 0.08em; text-shadow: 0 0 8px #00ffc8; display: block; margin-bottom: 3px; }
+  .alert-msg   { font-size: 11px; color: rgba(255,255,255,0.5); letter-spacing: 0.05em; }
+
+  /* Custom row */
+  .custom-row {
+    display: flex; gap: 10px; width: 100%; align-items: center;
+  }
+  .custom-row label { font-size: 10px; color: rgba(0,255,200,0.5); letter-spacing: 0.2em; white-space: nowrap; }
+  .custom-row input[type=number] {
+    flex: 1;
+    background: rgba(0,0,0,0.5);
+    border: 1px solid rgba(0,255,200,0.25);
+    border-radius: 10px;
+    color: #00ffc8;
+    font-family: 'Orbitron', monospace;
+    font-size: 15px; font-weight: 700;
+    text-align: center;
+    padding: 0.6rem 0.5rem;
+    outline: none;
+    -moz-appearance: textfield;
+    transition: border-color 0.2s;
+  }
+  .custom-row input:focus { border-color: rgba(0,255,200,0.6); }
+  .custom-row input::-webkit-inner-spin-button,
+  .custom-row input::-webkit-outer-spin-button { display: none; }
+
+  /* Controls */
+  .controls { display: flex; gap: 10px; width: 100%; flex-wrap: wrap; }
+  .ctrl-btn {
+    flex: 1; min-width: 130px;
+    padding: 0.75rem 0.5rem;
+    border-radius: 10px;
+    border: 1px solid rgba(0,255,200,0.3);
+    background: rgba(0,255,200,0.05);
+    color: #00ffc8;
+    font-family: 'Orbitron', monospace;
+    font-size: 10px; font-weight: 700;
+    letter-spacing: 0.15em; text-transform: uppercase;
+    cursor: pointer; transition: all 0.2s;
+    text-shadow: 0 0 6px rgba(0,255,200,0.5);
+  }
+  .ctrl-btn:hover { background: rgba(0,255,200,0.12); border-color: rgba(0,255,200,0.6); box-shadow: 0 0 15px rgba(0,255,200,0.2); }
+  .ctrl-btn:active { transform: scale(0.97); }
+  .ctrl-btn.pink { border-color: rgba(255,45,120,0.3); background: rgba(255,45,120,0.05); color: #ff2d78; text-shadow: 0 0 6px rgba(255,45,120,0.5); }
+  .ctrl-btn.pink:hover { background: rgba(255,45,120,0.12); border-color: rgba(255,45,120,0.6); box-shadow: 0 0 15px rgba(255,45,120,0.2); }
+
+  /* Log panel */
+  .log-panel {
+    width: 100%;
+    border: 1px solid rgba(255,45,120,0.15);
+    border-radius: 12px;
+    background: rgba(0,0,0,0.3);
+    padding: 1rem;
+    max-height: 150px;
+    overflow-y: auto;
+  }
+  .log-panel::-webkit-scrollbar { width: 3px; }
+  .log-panel::-webkit-scrollbar-track { background: transparent; }
+  .log-panel::-webkit-scrollbar-thumb { background: rgba(0,255,200,0.3); border-radius: 2px; }
+  .log-head { font-size: 9px; letter-spacing: 0.3em; color: rgba(255,45,120,0.5); text-transform: uppercase; margin-bottom: 8px; display: block; }
+  .log-row  { display: flex; gap: 10px; align-items: center; padding: 5px 0; border-bottom: 1px solid rgba(255,255,255,0.04); font-size: 11px; }
+  .log-time { color: #00ffc8; font-family: 'Orbitron', monospace; font-size: 10px; flex-shrink: 0; }
+  .log-msg  { color: rgba(255,255,255,0.45); }
+  .log-row.alert-log .log-msg { color: #ff2d78; font-weight: 700; }
+
+  /* Footer */
+  .footer {
+    font-size: 9px; color: rgba(255,255,255,0.15);
+    letter-spacing: 0.2em; text-align: center; margin-top: 0.5rem;
+  }
+
+  /* Flicker on alarm */
+  @keyframes flicker {
+    0%, 100% { opacity: 1; }
+    20% { opacity: 0.8; }
+    40% { opacity: 1; }
+    60% { opacity: 0.85; }
+  }
+  .flickering { animation: flicker 0.2s ease 3; }
+
+  /* Responsive */
+  @media (max-width: 480px) {
+    .timers-row { grid-template-columns: 1fr 1fr; }
+    .controls { flex-direction: column; }
+    .ctrl-btn { min-width: unset; }
+  }
+</style>
+</head>
+<body>
+
+<div class="city-grid"></div>
+<div class="scanline"></div>
+<div class="rain" id="rain"></div>
+
+<div class="wrapper">
+
+  <!-- Header -->
+  <div class="header-sign">
+    <span class="kanji-tag">東京 · QRIS MONITOR · ネオン</span>
+    <div class="main-title">QRIS<span>CHECK</span></div>
+    <div class="sub-title">TOKYO NEON TIMER SYSTEM · UDINTOGEL</div>
+  </div>
+
+  <!-- Jam sekarang -->
+  <div class="clock-panel">
+    <div class="clock-label">◈ WAKTU SEKARANG</div>
+    <div class="clock-now" id="clockNow">00:00:00</div>
+    <div class="clock-date" id="clockDate">---</div>
+  </div>
+
+  <!-- Info cards -->
+  <div class="timers-row">
+    <div class="timer-card cyan">
+      <span class="tc-icon">⏱</span>
+      <span class="tc-label">◎ Timer mulai</span>
+      <span class="tc-time" id="startTime">—</span>
+      <span class="tc-sub">Waktu aktivasi</span>
+    </div>
+    <div class="timer-card pink">
+      <span class="tc-icon">🔔</span>
+      <span class="tc-label">◈ Target alarm</span>
+      <span class="tc-time" id="targetTime">—</span>
+      <span class="tc-sub" id="minuteLabel">+20 menit</span>
+    </div>
+    <div class="timer-card yellow">
+      <span class="tc-icon">⚡</span>
+      <span class="tc-label">✦ Alarm ke-</span>
+      <span class="tc-time" id="alarmCount">0</span>
+      <span class="tc-sub">Total berbunyi</span>
+    </div>
+    <div class="timer-card purple">
+      <span class="tc-icon">📡</span>
+      <span class="tc-label">◇ Status</span>
+      <span class="tc-time" id="statusText" style="font-size:0.85rem;letter-spacing:0.04em">STANDBY</span>
+      <span class="tc-sub">Sistem monitor</span>
+    </div>
+  </div>
+
+  <!-- Countdown utama -->
+  <div class="countdown-panel">
+    <span class="cd-label">◈ HITUNG MUNDUR QRIS CHECK</span>
+    <div class="cd-target">Alarm berbunyi pukul <strong id="alarmAtDisplay">—</strong></div>
+    <div class="circle-wrap">
+      <svg width="160" height="160" viewBox="0 0 160 160">
+        <circle class="circle-bg"   cx="80" cy="80" r="70"/>
+        <circle class="circle-prog" cx="80" cy="80" r="70" id="circProg"/>
+      </svg>
+      <div class="circle-inner">
+        <div class="cd-big" id="cdBig">20:00</div>
+        <div class="cd-unit" id="cdUnit">MENIT : DETIK</div>
+      </div>
+    </div>
+    <span class="cd-status" id="cdStatus">Tekan START untuk memulai timer</span>
+  </div>
+
+  <!-- Alert banner -->
+  <div class="alert-banner" id="alertBanner">
+    <span class="alert-icon">🔔</span>
+    <div>
+      <span class="alert-title">QRIS ALERT!</span>
+      <span class="alert-msg">Tolong cek saldo QRIS sekarang, jangan kelewat ya~</span>
+    </div>
+  </div>
+
+  <!-- Set durasi -->
+  <div class="custom-row">
+    <label>DURASI (MENIT):</label>
+    <input type="number" id="minuteInput" value="20" min="1" max="999" placeholder="20"/>
+    <label>MENIT</label>
+  </div>
+
+  <!-- Tombol kontrol -->
+  <div class="controls">
+    <button class="ctrl-btn"      onclick="startTimer()">▶ START</button>
+    <button class="ctrl-btn pink" onclick="resetTimer()">■ RESET</button>
+    <button class="ctrl-btn"      onclick="testAlarm()">♪ TES SUARA</button>
+    <button class="ctrl-btn pink" onclick="stopAlarm()">✕ STOP ALARM</button>
+  </div>
+
+  <!-- Log -->
+  <div class="log-panel">
+    <span class="log-head">◇ LOG AKTIVITAS</span>
+    <div id="logFeed"></div>
+  </div>
+
+  <div class="footer">UDINTOGEL · QRIS TIMER v1.0 · 東京ネオン</div>
+</div>
+
+<script>
+  // ─── Rain ───────────────────────────────────
+  (function buildRain() {
+    const rain = document.getElementById('rain');
+    for (let i = 0; i < 35; i++) {
+      const d = document.createElement('div');
+      d.className = 'rain-drop';
+      const h = Math.random() * 80 + 20;
+      d.style.cssText =
+        `left:${Math.random()*100}%;` +
+        `height:${h}px;top:-${h}px;` +
+        `animation-duration:${(Math.random()*3+2).toFixed(2)}s;` +
+        `animation-delay:${(Math.random()*5).toFixed(2)}s`;
+      rain.appendChild(d);
+    }
+  })();
+
+  // ─── State ──────────────────────────────────
+  let timerInterval  = null;
+  let alarmInterval  = null;
+  let targetMs       = null;
+  let startMs        = null;
+  let durationMs     = 20 * 60 * 1000;
+  let alarmCount     = 0;
+  let isRunning      = false;
+  const CIRC         = 439.8; // 2 * PI * 70
+  const logs         = [];
+
+  // ─── Clock ──────────────────────────────────
+  function pad(n) { return String(n).padStart(2, '0'); }
+
+  function fmtTime(date) {
+    return `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+  }
+
+  function updateClock() {
+    const n = new Date();
+    document.getElementById('clockNow').textContent =
+      `${pad(n.getHours())}:${pad(n.getMinutes())}:${pad(n.getSeconds())}`;
+    const days   = ['Minggu','Senin','Selasa','Rabu','Kamis','Jumat','Sabtu'];
+    const months = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'];
+    document.getElementById('clockDate').textContent =
+      `${days[n.getDay()]} · ${pad(n.getDate())} ${months[n.getMonth()]} ${n.getFullYear()}`;
+  }
+  setInterval(updateClock, 1000);
+  updateClock();
+
+  // ─── Log ────────────────────────────────────
+  function addLog(msg, isAlert) {
+    logs.unshift({ t: fmtTime(new Date()), msg, isAlert: !!isAlert });
+    if (logs.length > 60) logs.pop();
+    renderLog();
+  }
+
+  function renderLog() {
+    document.getElementById('logFeed').innerHTML = logs.map(l =>
+      `<div class="log-row${l.isAlert ? ' alert-log' : ''}">
+         <span class="log-time">${l.t}</span>
+         <span class="log-msg">${l.msg}</span>
+       </div>`
+    ).join('');
+  }
+
+  // ─── Helpers ────────────────────────────────
+  function getMinutes() {
+    const v = parseInt(document.getElementById('minuteInput').value);
+    return (isNaN(v) || v < 1) ? 20 : v;
+  }
+
+  // ─── Start ──────────────────────────────────
+  function startTimer() {
+    if (isRunning) return;
+    const mins   = getMinutes();
+    durationMs   = mins * 60 * 1000;
+    startMs      = Date.now();
+    targetMs     = startMs + durationMs;
+    isRunning    = true;
+
+    const startDate  = new Date(startMs);
+    const targetDate = new Date(targetMs);
+
+    document.getElementById('startTime').textContent     = fmtTime(startDate);
+    document.getElementById('targetTime').textContent    = fmtTime(targetDate);
+    document.getElementById('minuteLabel').textContent   = `+${mins} menit`;
+    document.getElementById('alarmAtDisplay').textContent = fmtTime(targetDate);
+    document.getElementById('statusText').textContent    = 'AKTIF';
+    document.getElementById('cdStatus').textContent      = 'Timer berjalan... ~( ´▽｀)~';
+
+    addLog(`Timer dimulai — alarm pukul ${fmtTime(targetDate)}`);
+    if (timerInterval) clearInterval(timerInterval);
+    timerInterval = setInterval(tick, 250);
+    tick();
+  }
+
+  // ─── Tick ───────────────────────────────────
+  function tick() {
+    if (!isRunning || !targetMs) return;
+    const now       = Date.now();
+    const remaining = Math.max(0, targetMs - now);
+    const elapsed   = durationMs - remaining;
+    const progress  = Math.min(1, elapsed / durationMs);
+
+    const totalSec = Math.ceil(remaining / 1000);
+    const mins     = Math.floor(totalSec / 60);
+    const secs     = totalSec % 60;
+    const display  = `${pad(mins)}:${pad(secs)}`;
+
+    const cdBig = document.getElementById('cdBig');
+    const circ  = document.getElementById('circProg');
+
+    cdBig.textContent = display;
+    circ.style.strokeDashoffset = CIRC * (1 - progress);
+
+    if (remaining <= 0) {
+      cdBig.className = 'cd-big done-text';
+      circ.className  = 'circle-prog done';
+    } else if (remaining <= 60000) {
+      cdBig.className = 'cd-big urgent';
+      circ.className  = 'circle-prog urgent';
+    } else {
+      cdBig.className = 'cd-big';
+      circ.className  = 'circle-prog';
+    }
+
+    // Progress bar on info cards
+    document.querySelectorAll('.timer-card').forEach(c =>
+      c.style.setProperty('--progress', progress)
+    );
+
+    if (remaining <= 0 && isRunning) triggerAlarm();
+  }
+
+  // ─── Alarm ──────────────────────────────────
+  function triggerAlarm() {
+    isRunning = false;
+    clearInterval(timerInterval);
+    alarmCount++;
+    document.getElementById('alarmCount').textContent  = alarmCount;
+    document.getElementById('statusText').textContent  = 'ALARM!';
+    document.getElementById('cdStatus').textContent    = '⚡ WAKTU HABIS! Cek QRIS sekarang!';
+    document.getElementById('cdBig').textContent       = '00:00';
+    document.getElementById('cdBig').className         = 'cd-big done-text';
+    document.getElementById('circProg').className      = 'circle-prog done';
+    document.getElementById('circProg').style.strokeDashoffset = 0;
+    document.getElementById('alertBanner').classList.add('show');
+
+    document.body.classList.add('flickering');
+    setTimeout(() => document.body.classList.remove('flickering'), 600);
+
+    addLog('🔔 ALARM! Waktunya cek saldo QRIS!', true);
+    speakAlert();
+
+    // Ulangi 2x lagi dengan jeda
+    let rep = 1;
+    alarmInterval = setInterval(() => {
+      if (rep < 3) { speakAlert(); rep++; }
+      else          { clearInterval(alarmInterval); }
+    }, 5000);
+  }
+
+  // ─── TTS + Beep ─────────────────────────────
+  function speakAlert() {
+    playBeep();
+    if (!('speechSynthesis' in window)) return;
+    window.speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(
+      'Tolong cek saldo QRIS sekarang, jangan kelewat ya'
+    );
+    u.lang   = 'id-ID';
+    u.rate   = 0.9;
+    u.pitch  = 1.05;
+    u.volume = 1;
+    const voices  = window.speechSynthesis.getVoices();
+    const idVoice = voices.find(v => v.lang.startsWith('id'))
+                 || voices.find(v => v.lang.startsWith('en-US'))
+                 || voices[0];
+    if (idVoice) u.voice = idVoice;
+    window.speechSynthesis.speak(u);
+  }
+
+  // Trigger voice list load
+  if ('speechSynthesis' in window) {
+    window.speechSynthesis.getVoices();
+    window.speechSynthesis.addEventListener('voiceschanged', () => {});
+  }
+
+  function playBeep() {
+    try {
+      const ctx   = new (window.AudioContext || window.webkitAudioContext)();
+      const notes = [523, 659, 784, 1047]; // C5 E5 G5 C6
+      notes.forEach((freq, i) => {
+        const osc = ctx.createOscillator();
+        const g   = ctx.createGain();
+        osc.connect(g); g.connect(ctx.destination);
+        osc.type = 'sine';
+        osc.frequency.value = freq;
+        const t = ctx.currentTime + i * 0.15;
+        g.gain.setValueAtTime(0.3, t);
+        g.gain.exponentialRampToValueAtTime(0.001, t + 0.25);
+        osc.start(t); osc.stop(t + 0.3);
+      });
+      // Low sub boom
+      const sub = ctx.createOscillator();
+      const sg  = ctx.createGain();
+      sub.connect(sg); sg.connect(ctx.destination);
+      sub.frequency.value = 80;
+      sg.gain.setValueAtTime(0.35, ctx.currentTime + 0.6);
+      sg.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 1.1);
+      sub.start(ctx.currentTime + 0.6); sub.stop(ctx.currentTime + 1.2);
+    } catch(e) {}
+  }
+
+  // ─── Controls ───────────────────────────────
+  function testAlarm() {
+    addLog('♪ Test suara dijalankan');
+    speakAlert();
+  }
+
+  function stopAlarm() {
+    clearInterval(alarmInterval);
+    if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+    document.getElementById('alertBanner').classList.remove('show');
+    addLog('✕ Alarm dihentikan manual');
+  }
+
+  function resetTimer() {
+    clearInterval(timerInterval);
+    clearInterval(alarmInterval);
+    if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+    isRunning = false;
+    targetMs  = null;
+    startMs   = null;
+
+    const mins = getMinutes();
+    document.getElementById('cdBig').textContent         = `${pad(mins)}:00`;
+    document.getElementById('cdBig').className           = 'cd-big';
+    document.getElementById('circProg').style.strokeDashoffset = CIRC;
+    document.getElementById('circProg').className        = 'circle-prog';
+    document.getElementById('startTime').textContent     = '—';
+    document.getElementById('targetTime').textContent    = '—';
+    document.getElementById('alarmAtDisplay').textContent = '—';
+    document.getElementById('statusText').textContent    = 'STANDBY';
+    document.getElementById('cdStatus').textContent      = 'Tekan START untuk memulai timer';
+    document.getElementById('alertBanner').classList.remove('show');
+    document.querySelectorAll('.timer-card').forEach(c =>
+      c.style.setProperty('--progress', 0)
+    );
+    addLog('■ Timer di-reset');
+  }
+
+  // Update preview saat input berubah
+  document.getElementById('minuteInput').addEventListener('input', function() {
+    if (!isRunning) {
+      const m = parseInt(this.value) || 20;
+      document.getElementById('cdBig').textContent = `${pad(m)}:00`;
+    }
+  });
+
+  // ─── Init log ───────────────────────────────
+  addLog('Sistem QRIS Monitor aktif');
+  addLog('Set durasi lalu tekan START');
+</script>
+</body>
+</html>
